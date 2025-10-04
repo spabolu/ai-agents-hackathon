@@ -6,7 +6,8 @@ import time
 # Load FREEPIK_API_KEY as environment variable from .env file
 load_dotenv() 
 
-API_URL = "https://api.freepik.com/v1/ai/text-to-image/imagen3"
+API_URL = "https://api.freepik.com/v1/ai/gemini-2-5-flash-image-preview"
+# API_URL = "https://api.freepik.com/v1/ai/text-to-image/imagen3"
 timeout = 300 # 5 minutes
 generation_ok = True
 
@@ -14,8 +15,10 @@ headers = {"x-freepik-api-key": os.getenv("FREEPIK_API_KEY"), "Content-Type": "a
 
 payload = {
     "prompt": """
-    A minimalist flat-style illustration for Starbucks Cold Brew, featuring a sleek can with the Starbucks logo and product name clearly visible in bold letters. The can sits at the center, surrounded by simple, stylized swirls of iced coffee shaped like a soft tornado, with droplets or small lines suggesting motion. The scene should feel refreshing, modern, and energetic, with smooth clean shapes, vector-style gradients, and soft shadows. Place the tagline “Enjoy the best coffee coming this Summer” in a clear, modern sans-serif font below or above the can. Visual style: flat illustration, simple composition, vector aesthetic, minimal details, strong brand visibility, summer mood, refreshing energy, balanced negative space. Keywords: illustration, minimalist design, vector, clean composition, summer vibe, refreshing coffee, clear logo, bold typography, pastel background.
+    A minimalist close-up studio product shot for Starbucks Cold Brew, featuring a sleek can with the Starbucks logo and product name clearly visible in bold letters. The can sits at the center, surrounded by simple, stylized swirls of iced coffee shaped like a soft tornado, with droplets or small lines suggesting motion. The scene should feel refreshing, modern, and energetic, with smooth clean shapes, vector-style gradients, and soft shadows. Place the tagline “Enjoy the best coffee coming this Summer” in a clear, modern sans-serif font below or above the can. Visual style: flat illustration, simple composition, vector aesthetic, minimal details, strong brand visibility, summer mood, refreshing energy, balanced negative space. Keywords: illustration, minimalist design, vector, clean composition, summer vibe, refreshing coffee, clear logo, bold typography, pastel background.
     """,
+    "seed": "1073741823",
+    "guidance_scale": 2.5,
     #"webhook_url": "https://www.example.com/webhook", # only if you want send the status of the task to a webhook
     "num_images": 1,
     "aspect_ratio": "square_1_1",
