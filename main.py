@@ -398,8 +398,9 @@ async def generate_ad(request: AdRequest):
     if DEEPL_API_KEY:
         print("\n[3/3] 🌐 Translating with DeepL (optional)...")
         try:
+            # DeepL API expects auth in params for free tier, or headers for pro
             deepl_response = requests.post(
-                "https://api.deepl.com/v2/translate",
+                "https://api-free.deepl.com/v2/translate",  # Use free endpoint
                 headers={"Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}"},
                 data={
                     "text": ad_copy,
