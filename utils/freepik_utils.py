@@ -20,7 +20,12 @@ TIMEOUT_SECONDS = 300  # Max time to wait for an image
 
 # --- 2. THE CORE UTILITY FUNCTION ---
 
-async def create_image(keywords: list) -> str:
+async def create_image(
+    keywords: list,
+    company_name: str = "Aura",
+    product_name: str = "Cold Brew",
+    tagline_prompt: str = "Elevate Your Moment"
+) -> str:
     """
     Generates an image using the Freepik AI API based on a list of keywords.
 
@@ -29,6 +34,9 @@ async def create_image(keywords: list) -> str:
 
     Args:
         keywords: A list of strings describing the desired image subject.
+        company_name: The brand/company name (default: "Aura")
+        product_name: The product name (default: "Cold Brew")
+        tagline_prompt: The tagline to display (default: "Elevate Your Moment")
 
     Returns:
         A string containing the URL of the generated image.
@@ -43,22 +51,9 @@ async def create_image(keywords: list) -> str:
         raise ValueError("Keywords list cannot be empty.")
 
     # Step 1: Dynamically build a high-quality prompt from the keywords
-    subject_prompt = ", ".join(keywords)
     full_prompt = f"""
-    Professional high-resolution close-up product photography of: {subject_prompt}.
-    Shot in a premium studio setting with professional lighting equipment. The product should be 
-    the hero of the composition, positioned prominently with sharp focus and crystal-clear details.
-    Photorealistic rendering with attention to: surface textures, material reflections, condensation 
-    droplets (if beverage), label clarity, and brand logo visibility. Use dramatic studio lighting 
-    with controlled highlights and shadows to create depth and dimension. Background should be clean 
-    and minimalist to emphasize the product, with subtle gradient or bokeh effect. Include natural 
-    environmental elements that complement the product (e.g., fresh ingredients, ice, water splashes) 
-    arranged artfully around the main subject. Color grading should be vibrant yet natural, with 
-    enhanced contrast and saturation for commercial appeal. Composition follows the rule of thirds 
-    with intentional negative space for text overlay. Shot with a macro lens at f/2.8 aperture for 
-    shallow depth of field, creating a premium advertising aesthetic.
-    Style: commercial product photography, advertising quality, photorealistic, studio shot, 
-    professional lighting, high detail, sharp focus, premium aesthetic.
+    Professional high-resolution close-up product photography of:
+    {company_name} {product_name}, featuring a sleek can with the Starbucks logo and product name clearly visible in bold letters. The can sits at the center, surrounded by simple, stylized swirls of iced coffee shaped like a soft tornado, with droplets or small lines suggesting motion. The scene should feel refreshing, modern, and energetic, with smooth clean shapes, vector-style gradients, and soft shadows. Place the tagline {tagline_prompt} in a clear, modern sans-serif font below or above the can. Visual style: flat illustration, simple composition, vector aesthetic, minimal details, strong brand visibility, summer mood, refreshing energy, balanced negative space. Keywords: illustration, minimalist design, vector, clean composition, summer vibe, refreshing coffee, clear logo, bold typography, pastel background.
     """
 
     # Step 2: Define the payload for the API request
