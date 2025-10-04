@@ -230,7 +230,7 @@ def _log_to_clickhouse(data: AdGenerationResponse, response_time_ms: float):
     Log ad generation request to ClickHouse for REAL analytics.
     """
     if not CLICKHOUSE_AVAILABLE:
-        print("⚠️  ClickHouse not available - skipping analytics log")
+        print("⚠️  ClickHouse not available - analytics logging disabled (non-critical)")
         return
 
     try:
@@ -260,7 +260,7 @@ def _log_to_clickhouse(data: AdGenerationResponse, response_time_ms: float):
         )
         print(f"✅ ClickHouse: Logged ad generation (ID: {request_id}, Response time: {response_time_ms:.2f}ms)")
     except Exception as e:
-        print(f"⚠️  ClickHouse logging failed: {e}")
+        print(f"⚠️  ClickHouse logging failed (non-critical): {str(e)[:100]}")
 
 
 def _send_datadog_metric(metric_name: str, value: float, tags: list = None):
@@ -276,7 +276,7 @@ def _send_datadog_metric(metric_name: str, value: float, tags: list = None):
         payload = {
             "series": [{
                 "metric": metric_name,
-                "type": "gauge",
+                "type": 0,  # 0 = gauge (use integer, not string)
                 "points": [{"timestamp": now, "value": value}],
                 "tags": tags or []
             }]
@@ -393,10 +393,10 @@ async def generate_ad(request: AdRequest):
         print(f"  ⚠️  Freepik image generation failed (non-critical): {e}")
         image_url = "https://placeholder.com/aura-cold-brew.jpg"
 
-    # === STEP 3: TRANSLATE WITH DEEPL (Optional) ===
+    # === STEP 3: TRANSLATE WITH DEEPL (Optional - may fail if rate limited) ===
     translated_copy = None
     if DEEPL_API_KEY:
-        print("\n[3/3] 🌐 Translating with DeepL...")
+        print("\n[3/3] 🌐 Translating with DeepL (optional)...")
         try:
             deepl_response = requests.post(
                 "https://api.deepl.com/v2/translate",
@@ -412,9 +412,9 @@ async def generate_ad(request: AdRequest):
                 translated_copy = deepl_response.json()["translations"][0]["text"]
                 print(f"  ✅ DeepL Translation (ES): {translated_copy[:60]}...")
             else:
-                print(f"  ⚠️  DeepL translation failed: {deepl_response.status_code}")
+                print(f"  ⚠️  DeepL translation failed: {deepl_response.status_code} (non-critical, continuing)")
         except Exception as e:
-            print(f"  ⚠️  DeepL error (non-critical): {e}")
+            print(f"  ⚠️  DeepL error (non-critical, continuing): {str(e)[:80]}")
 
     # === DETERMINE STATUS ===
     status = "approved" if confidence_score >= CONFIDENCE_THRESHOLD else "pending_review"
