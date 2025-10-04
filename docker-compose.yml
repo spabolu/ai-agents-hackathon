@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.1
+    container_name: ai-agent-clickhouse
+    ports:
+      - "8123:8123"  # HTTP interface
+      - "9000:9000"  # Native interface
+    environment:
+      CLICKHOUSE_DB: ai_agent
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./init-clickhouse.sh:/docker-entrypoint-initdb.d/init-clickhouse.sh
+    networks:
+      - ai-agent-network
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  fastapi:
+    build: .
+    container_name: ai-agent-fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DATABASE: ai_agent
+    env_file:
+      - .env
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+    networks:
+      - ai-agent-network
+    volumes:
+      - .:/app
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+volumes:
+  clickhouse_data:
+
+networks:
+  ai-agent-network:
+    driver: bridge

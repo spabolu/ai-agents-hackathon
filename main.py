@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from typing import Optional
 from openai import OpenAI
+from datetime import datetime
+from uuid import uuid4
 
 # Import your custom utility functions.
 # Make sure you have these files:
@@ -17,6 +19,15 @@ from openai import OpenAI
 from utils.linkup_utils import perform_web_search
 from utils.freepik_utils import create_image
 
+# Import ClickHouse client for REAL analytics logging
+try:
+    from clickhouse_client import ClickHouseClient
+    clickhouse_client = ClickHouseClient()
+    CLICKHOUSE_AVAILABLE = True
+except ImportError:
+    CLICKHOUSE_AVAILABLE = False
+    print("⚠️  ClickHouse client not available")
+
 
 # --- 2. INITIAL SETUP & CONFIGURATION ---
 
@@ -24,16 +35,23 @@ from utils.freepik_utils import create_image
 load_dotenv()
 
 CONFIDENCE_THRESHOLD = 85
-# DEMO_MODE ensures a fast and reliable demo by returning a pre-built response.
-# Set this to "False" in your TrueFoundry environment variables to use the live API.
+# DEMO_MODE optimizes for demo reliability (shorter timeouts, etc) but uses REAL APIs
 DEMO_MODE = os.getenv("DEMO_MODE", "True").lower() == "true"
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-DEEPL_API_KEY = os.getenv("DEEPL_API_KEY")  # Kept for future integration
+# API Keys
+TRUEFOUNDRY_API_KEY = os.getenv("TRUEFOUNDRY_API_KEY")
+DEEPL_API_KEY = os.getenv("DEEPL_API_KEY")
+DATADOG_API_KEY = os.getenv("DATADOG_API_KEY")
 
-# Startup check for the most critical API key
-if not OPENAI_API_KEY and not DEMO_MODE:
-    raise ValueError("FATAL ERROR: OPENAI_API_KEY environment variable not set and not in DEMO_MODE.")
+# Datadog configuration
+DATADOG_SITE = "datadoghq.com"
+DATADOG_METRICS_URL = f"https://api.{DATADOG_SITE}/api/v2/series"
+
+# Startup check for critical API keys
+if not TRUEFOUNDRY_API_KEY:
+    print("⚠️  WARNING: TRUEFOUNDRY_API_KEY not set - LLM calls will fail")
+if not DATADOG_API_KEY:
+    print("⚠️  WARNING: DATADOG_API_KEY not set - metrics will not be sent")
 
 # Initialize the FastAPI application
 app = FastAPI(
@@ -84,26 +102,30 @@ class AdGenerationResponse(BaseModel):
 @app.post("/generate_opportunity_campaign", response_model=CampaignResponse)
 async def generate_campaign(request: CampaignRequest):
     """
-    This endpoint orchestrates the entire autonomous marketing workflow.
+    This endpoint orchestrates the entire autonomous marketing workflow with REAL APIs.
     """
-    print("--- New Campaign Generation Request ---")
+    start_time = time.time()
+
+    print("=" * 80)
+    print("🚀 REAL OPPORTUNITY CAMPAIGN - Using LIVE APIs")
+    print("=" * 80)
     print(f"City: {request.city} | Brand Rules: {request.brand_rules}")
 
-    # == STEP 1: DISCOVER A REAL-TIME OPPORTUNITY ==
-    # Use the LinkUp function to find a timely local event.
-    print("\n[1/3] 🕵️  Discovering local opportunities with LinkUp...")
+    # == STEP 1: DISCOVER A REAL-TIME OPPORTUNITY WITH LINKUP ==
+    print("\n[1/4] 🕵️  Discovering local opportunities with Linkup...")
     try:
         discovered_event = await perform_web_search(request.city)
         if not discovered_event:
             raise ValueError("No event found.")
-        print(f"  > Opportunity Found: {discovered_event}")
+        print(f"  ✅ Linkup: Opportunity Found")
+        print(f"     Event: {discovered_event}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to perform LinkUp search: {e}")
+        print(f"  ❌ Linkup search failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to perform Linkup search: {e}")
 
 
-    # == STEP 2: GENERATE AD COPY WITH THE LLM ==
-    # Craft a detailed prompt and get the LLM to generate the campaign.
-    print("\n[2/3] 🧠  Generating creative campaign with TrueFoundry LLM...")
+    # == STEP 2: GENERATE AD COPY WITH TRUEFOUNDRY (GPT-5) ==
+    print("\n[2/4] 🧠  Generating creative campaign with TrueFoundry LLM (GPT-5)...")
     if not tfy_client:
          raise HTTPException(status_code=500, detail="TrueFoundry client not initialized. Check API key.")
 
@@ -127,33 +149,72 @@ async def generate_campaign(request: CampaignRequest):
 
     try:
         response = tfy_client.chat.completions.create(
-            model="autonomous-marketer/gpt-5", # Your specified model
+            model="autonomous-marketer/gpt-5",
             messages=[
                 {"role": "system", "content": "You are a marketing expert that only responds in JSON."},
                 {"role": "user", "content": prompt}
             ],
-            response_format={"type": "json_object"} # Use JSON mode for reliability
+            response_format={"type": "json_object"},
+            timeout=20 if DEMO_MODE else 60
         )
         llm_output = response.choices[0].message.content
         ad_content = json.loads(llm_output)
-        print(f"  > Ad Content Generated: {ad_content}")
+        print(f"  ✅ TrueFoundry: Campaign Generated")
+        print(f"     Headline: {ad_content.get('headline', 'N/A')}")
+        print(f"     Body: {ad_content.get('body', 'N/A')[:60]}...")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to get response from LLM: {e}")
+        print(f"  ❌ TrueFoundry API error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get response from TrueFoundry LLM: {e}")
 
 
-    # == STEP 3: CREATE THE AD CREATIVE ==
-    # Use the keywords from the LLM to find an image with Freepik.
-    print("\n[3/3] 🎨  Creating ad visual with Freepik...")
+    # == STEP 3: CREATE THE AD CREATIVE WITH FREEPIK ==
+    print("\n[3/4] 🎨  Creating ad visual with Freepik (Gemini 2.5 Flash)...")
     try:
         image_keywords = ad_content.get("image_keywords", ["default", "image"])
         image_url = await create_image(image_keywords)
-        print(f"  > Image URL: {image_url}")
+        print(f"  ✅ Freepik: Image Generated")
+        print(f"     URL: {image_url}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to create image with Freepik: {e}")
+        print(f"  ⚠️  Freepik image generation failed (non-critical): {e}")
+        image_url = "https://placeholder.com/campaign-image.jpg"
 
-    print("\n--- ✅ Campaign Generation Complete! ---")
+    # == STEP 4: LOG TO CLICKHOUSE ==
+    print("\n[4/4] 📊 Logging to ClickHouse...")
+    duration_ms = (time.time() - start_time) * 1000
 
-    # == STEP 4: RETURN THE FINAL CAMPAIGN ==
+    if CLICKHOUSE_AVAILABLE:
+        try:
+            request_id = str(uuid4())
+            timestamp = datetime.now()
+
+            clickhouse_client.client.insert(
+                'search_queries',
+                [[
+                    request_id,
+                    timestamp,
+                    f"Local events in {request.city}",
+                    'linkup',
+                    'deep',
+                    'sourcedAnswer',
+                    1,  # result_count
+                    duration_ms,
+                    True  # success
+                ]],
+                column_names=['id', 'timestamp', 'query_text', 'api_source', 'depth',
+                             'output_type', 'result_count', 'response_time_ms', 'success']
+            )
+            print(f"  ✅ ClickHouse: Logged campaign search (ID: {request_id})")
+        except Exception as e:
+            print(f"  ⚠️  ClickHouse logging failed: {e}")
+
+    # == SEND DATADOG METRICS ==
+    _send_datadog_metric("campaign.response_time_ms", duration_ms, tags=[f"city:{request.city}"])
+    _send_datadog_metric("campaign.generated", 1, tags=["endpoint:generate_opportunity_campaign"])
+
+    print(f"\n✅ COMPLETE: Campaign generation finished in {duration_ms:.2f}ms")
+    print("=" * 80)
+
+    # == RETURN THE FINAL CAMPAIGN ==
     return CampaignResponse(
         discovered_opportunity=discovered_event,
         headline=ad_content["headline"],
@@ -164,17 +225,81 @@ async def generate_campaign(request: CampaignRequest):
 
 # --- 5. HELPER FUNCTIONS FOR AD GENERATION ---
 
-def _log_mock(data: AdGenerationResponse):
+def _log_to_clickhouse(data: AdGenerationResponse, response_time_ms: float):
     """
-    Mocks logging for the hackathon demo. In a real application, this would
-    write to a live database (ClickHouse) and send metrics (Datadog).
+    Log ad generation request to ClickHouse for REAL analytics.
     """
-    print("--- MOCK ANALYTICS LOG ---")
-    print(f"Timestamp: {time.time()}")
-    print(f"Status: {data.status}")
-    print(f"Confidence: {data.confidence_score}")
-    print(f"Ad Copy: {data.ad_copy[:50]}...")
-    print("--------------------------")
+    if not CLICKHOUSE_AVAILABLE:
+        print("⚠️  ClickHouse not available - skipping analytics log")
+        return
+
+    try:
+        request_id = str(uuid4())
+        timestamp = datetime.now()
+
+        # Log to api_requests_log table
+        clickhouse_client.client.insert(
+            'api_requests_log',
+            [[
+                request_id,
+                timestamp,
+                'ad_generation',  # Custom type
+                '/generate-response-ad',
+                'POST',
+                json.dumps({"competitor_ad": data.competitor_ad_text[:100]}),
+                200,
+                json.dumps({"status": data.status, "confidence": data.confidence_score}),
+                response_time_ms,
+                None,  # No error
+                '127.0.0.1',
+                'FastAPI-Demo'
+            ]],
+            column_names=['id', 'timestamp', 'api_type', 'endpoint', 'request_method',
+                         'request_payload', 'response_status', 'response_body',
+                         'response_time_ms', 'error_message', 'client_ip', 'user_agent']
+        )
+        print(f"✅ ClickHouse: Logged ad generation (ID: {request_id}, Response time: {response_time_ms:.2f}ms)")
+    except Exception as e:
+        print(f"⚠️  ClickHouse logging failed: {e}")
+
+
+def _send_datadog_metric(metric_name: str, value: float, tags: list = None):
+    """
+    Send REAL metric to Datadog API.
+    """
+    if not DATADOG_API_KEY:
+        print(f"⚠️  Datadog API key not set - skipping metric: {metric_name}")
+        return
+
+    try:
+        now = int(time.time())
+        payload = {
+            "series": [{
+                "metric": metric_name,
+                "type": "gauge",
+                "points": [{"timestamp": now, "value": value}],
+                "tags": tags or []
+            }]
+        }
+
+        headers = {
+            "DD-API-KEY": DATADOG_API_KEY,
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(
+            DATADOG_METRICS_URL,
+            headers=headers,
+            json=payload,
+            timeout=5
+        )
+
+        if response.status_code == 202:
+            print(f"✅ Datadog: Sent metric '{metric_name}' = {value} (tags: {tags})")
+        else:
+            print(f"⚠️  Datadog metric failed: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"⚠️  Datadog metric error: {e}")
 
 
 def _get_brand_rules() -> str:
@@ -211,58 +336,112 @@ def _build_openai_prompt(competitor_ad: str, brand_rules: str) -> str:
 # --- 6. COMPETITIVE AD GENERATION ENDPOINT ---
 
 @app.post("/generate-response-ad", response_model=AdGenerationResponse, summary="Generate a competitive response ad")
-def generate_ad(request: AdRequest):
+async def generate_ad(request: AdRequest):
     start_time = time.time()
 
-    # --- HACKATHON DEMO SHORTCUT ---
-    # If in DEMO_MODE, return a pre-built, high-quality response instantly.
-    # This makes your demo fast and reliable.
-    if DEMO_MODE:
-        mock_response = {
-            "status": "approved",
-            "confidence_score": 95,
-            "ad_copy": "Don't settle for a temporary jolt. Elevate your day with the smooth, sustained energy of Aura Cold Brew. Crafted for clarity, not crashes.",
-            "generated_tagline": "Aura Cold Brew: Your Daily Ritual, Perfected.",
-            "image_prompt": "Minimalist vector art of a sleek Aura Cold Brew can with a green mermaid logo, on a soft pastel mint background, clean typography.",
-            "competitor_ad_text": request.competitor_ad_text
-        }
-        response_data = AdGenerationResponse(**mock_response)
-        _log_mock(response_data)
-        duration_ms = (time.time() - start_time) * 1000
-        print(f"DATADOG METRIC (MOCKED): ad_generation.status.approved, duration: {duration_ms:.2f}ms")
-        return response_data
+    print("=" * 80)
+    print("🚀 REAL AD GENERATION - Using LIVE APIs")
+    print("=" * 80)
 
-    # --- LIVE API CALL LOGIC (Disabled in Demo Mode) ---
+    # Get brand rules
     brand_rules = _get_brand_rules()
     openai_prompt = _build_openai_prompt(request.competitor_ad_text, brand_rules)
 
+    # === STEP 1: GENERATE AD COPY WITH TRUEFOUNDRY (GPT-5) ===
+    print("\n[1/3] 🧠 Calling TrueFoundry LLM (GPT-5)...")
+
+    if not tfy_client:
+        raise HTTPException(status_code=500, detail="TrueFoundry client not initialized. Check API key.")
+
     try:
-        openai_response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json={"model": "gpt-4-turbo", "messages": [{"role": "user", "content": openai_prompt}],
-                  "response_format": {"type": "json_object"}},
-            timeout=30
+        response = tfy_client.chat.completions.create(
+            model="autonomous-marketer/gpt-5",
+            messages=[
+                {"role": "system", "content": "You are a marketing expert that only responds in JSON."},
+                {"role": "user", "content": openai_prompt}
+            ],
+            response_format={"type": "json_object"},
+            timeout=20 if DEMO_MODE else 60  # Shorter timeout for demo
         )
-        openai_response.raise_for_status()
-        content = openai_response.json()['choices'][0]['message']['content']
-        ad_data = json.loads(content)
+        llm_output = response.choices[0].message.content
+        ad_data = json.loads(llm_output)
 
         confidence_score = ad_data.get("confidence_score", 0)
         ad_copy = ad_data.get("ad_copy", "Error: No ad copy.")
         generated_tagline = ad_data.get("generated_tagline", "Error: No tagline.")
         image_keywords = ad_data.get("image_keywords", "Minimalist coffee can")
 
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Error communicating with OpenAI API: {e}")
+        print(f"  ✅ TrueFoundry Response:")
+        print(f"     Confidence: {confidence_score}%")
+        print(f"     Ad Copy: {ad_copy[:60]}...")
+        print(f"     Tagline: {generated_tagline}")
 
-    # The rest of the logic for confidence check, translation, etc. would go here...
+    except Exception as e:
+        print(f"  ❌ TrueFoundry API Error: {e}")
+        raise HTTPException(status_code=502, detail=f"Error communicating with TrueFoundry API: {e}")
+
+    # === STEP 2: GENERATE IMAGE WITH FREEPIK (Optional) ===
+    print("\n[2/3] 🎨 Generating image with Freepik...")
+    image_url = None
+    try:
+        if isinstance(image_keywords, list):
+            image_url = await create_image(image_keywords[:5])  # Limit to 5 keywords
+        else:
+            image_url = await create_image([image_keywords])
+        print(f"  ✅ Freepik Image URL: {image_url}")
+    except Exception as e:
+        print(f"  ⚠️  Freepik image generation failed (non-critical): {e}")
+        image_url = "https://placeholder.com/aura-cold-brew.jpg"
+
+    # === STEP 3: TRANSLATE WITH DEEPL (Optional) ===
+    translated_copy = None
+    if DEEPL_API_KEY:
+        print("\n[3/3] 🌐 Translating with DeepL...")
+        try:
+            deepl_response = requests.post(
+                "https://api.deepl.com/v2/translate",
+                headers={"Authorization": f"DeepL-Auth-Key {DEEPL_API_KEY}"},
+                data={
+                    "text": ad_copy,
+                    "target_lang": "ES",
+                    "formality": "prefer_more"  # Professional tone
+                },
+                timeout=10
+            )
+            if deepl_response.status_code == 200:
+                translated_copy = deepl_response.json()["translations"][0]["text"]
+                print(f"  ✅ DeepL Translation (ES): {translated_copy[:60]}...")
+            else:
+                print(f"  ⚠️  DeepL translation failed: {deepl_response.status_code}")
+        except Exception as e:
+            print(f"  ⚠️  DeepL error (non-critical): {e}")
+
+    # === DETERMINE STATUS ===
+    status = "approved" if confidence_score >= CONFIDENCE_THRESHOLD else "pending_review"
+
+    # === CREATE RESPONSE ===
     final_ad_package = AdGenerationResponse(
-        status="approved", confidence_score=confidence_score, ad_copy=ad_copy,
-        generated_tagline=generated_tagline, translated_copy=f"(ES) {ad_copy}",
-        image_prompt=image_keywords, competitor_ad_text=request.competitor_ad_text
+        status=status,
+        confidence_score=confidence_score,
+        ad_copy=ad_copy,
+        generated_tagline=generated_tagline,
+        translated_copy=translated_copy,
+        image_prompt=str(image_keywords) if image_url else None,
+        competitor_ad_text=request.competitor_ad_text
     )
-    _log_mock(final_ad_package)
+
+    # === LOG TO CLICKHOUSE ===
+    duration_ms = (time.time() - start_time) * 1000
+    _log_to_clickhouse(final_ad_package, duration_ms)
+
+    # === SEND DATADOG METRICS ===
+    _send_datadog_metric("ad_generation.response_time_ms", duration_ms, tags=[f"status:{status}"])
+    _send_datadog_metric("ad_generation.confidence_score", confidence_score, tags=[f"status:{status}"])
+    _send_datadog_metric(f"ad_generation.status.{status}", 1, tags=["endpoint:generate-response-ad"])
+
+    print(f"\n✅ COMPLETE: Ad generation finished in {duration_ms:.2f}ms")
+    print("=" * 80)
+
     return final_ad_package
 
 
