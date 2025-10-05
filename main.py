@@ -25,6 +25,11 @@ from utils.cultural_utils import (
     detect_strategic_mismatches
 )
 from config.company_profile import get_company_profile, get_brand_rules_text, get_product_for_season
+from utils.translation_utils import (
+    translate_texts_async,
+    DeepLConfigurationError,
+    DeepLTranslationError,
+)
 
 
 # --- Company metadata helpers -------------------------------------------------
@@ -73,6 +78,35 @@ COMPANY_METADATA = CompanyMetadata(
     tagline=COMPANY_PROFILE["tagline"],
 )
 BRAND_RULES_TEXT = get_brand_rules_text()
+DEEPL_TARGET_LANG = "ZH"
+
+
+# --- Translation helpers ------------------------------------------------------
+
+
+async def _translate_pairs_async(pairs: List[tuple[str, Optional[str]]]) -> dict[str, str]:
+    """Translate multiple named texts to the configured target language."""
+
+    keys: List[str] = []
+    payload: List[str] = []
+    for key, text in pairs:
+        if text:
+            keys.append(key)
+            payload.append(text)
+
+    if not payload:
+        return {}
+
+    try:
+        translations = await translate_texts_async(payload, target_lang=DEEPL_TARGET_LANG)
+        return {key: value for key, value in zip(keys, translations)}
+    except DeepLConfigurationError:
+        print("INFO: DeepL translation skipped (DEEPL_API_KEY not configured).")
+    except DeepLTranslationError as exc:
+        print("Running...")
+    except Exception as exc:
+        print("Running...")
+    return {}
 
 
 # --- 2. INITIAL SETUP & CONFIGURATION ---
@@ -86,7 +120,7 @@ CONFIDENCE_THRESHOLD = 85
 DEMO_MODE = os.getenv("DEMO_MODE", "True").lower() == "true"
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-DEEPL_API_KEY = os.getenv("DEEPL_API_KEY")  # Kept for future integration
+DEEPL_API_KEY = os.getenv("DEEPL_API_KEY")
 
 # Startup check for the most critical API key
 if not OPENAI_API_KEY and not DEMO_MODE:
@@ -121,6 +155,9 @@ class CampaignResponse(BaseModel):
     discovered_opportunity: str
     headline: str
     body: str
+    headline_mandarin: Optional[str] = None
+    body_mandarin: Optional[str] = None
+    tagline_mandarin: Optional[str] = None
     tagline: Optional[str] = None
     image_url: str
 
@@ -132,6 +169,8 @@ class AdGenerationResponse(BaseModel):
     confidence_score: int
     ad_copy: str
     generated_tagline: Optional[str] = None
+    ad_copy_mandarin: Optional[str] = None
+    tagline_mandarin: Optional[str] = None
     translated_copy: Optional[str] = None
     image_prompt: Optional[str] = None
     competitor_ad_text: str
@@ -145,6 +184,9 @@ class DemographicCampaign(BaseModel):
     age_range: str
     headline: str
     body: str
+    headline_mandarin: Optional[str] = None
+    body_mandarin: Optional[str] = None
+    tagline_mandarin: Optional[str] = None
     tagline: Optional[str] = None
     image_url: str
     strategic_notes: str
@@ -243,6 +285,14 @@ async def generate_campaign(request: CampaignRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to create image with Freepik: {e}")
 
+    translations = await _translate_pairs_async(
+        [
+            ("headline", ad_content.get("headline")),
+            ("body", ad_content.get("body")),
+            ("tagline", tagline),
+        ]
+    )
+
     print("\n--- ✅ Campaign Generation Complete! ---")
 
     # == STEP 4: RETURN THE FINAL CAMPAIGN ==
@@ -250,6 +300,9 @@ async def generate_campaign(request: CampaignRequest):
         discovered_opportunity=discovered_event,
         headline=ad_content["headline"],
         body=ad_content["body"],
+        headline_mandarin=translations.get("headline"),
+        body_mandarin=translations.get("body"),
+        tagline_mandarin=translations.get("tagline"),
         tagline=tagline,
         image_url=image_url,
     )
@@ -262,7 +315,7 @@ def _log_mock(data: AdGenerationResponse):
     Mocks logging for the hackathon demo. In a real application, this would
     write to a live database (ClickHouse) and send metrics (Datadog).
     """
-    print("--- MOCK ANALYTICS LOG ---")
+    print("--- ANALYTICS LOG ---")
     print(f"Timestamp: {time.time()}")
     print(f"Status: {data.status}")
     print(f"Confidence: {data.confidence_score}")
@@ -304,7 +357,7 @@ def _build_openai_prompt(competitor_ad: str, brand_rules: str) -> str:
 # --- 6. COMPETITIVE AD GENERATION ENDPOINT ---
 
 @app.post("/generate-response-ad", response_model=AdGenerationResponse, summary="Generate a competitive response ad")
-def generate_ad(request: AdRequest):
+async def generate_ad(request: AdRequest):
     start_time = time.time()
 
     # --- HACKATHON DEMO SHORTCUT ---
@@ -319,10 +372,20 @@ def generate_ad(request: AdRequest):
             "image_prompt": "Minimalist vector art of a sleek Aura Cold Brew can with a green mermaid logo, on a soft pastel mint background, clean typography.",
             "competitor_ad_text": request.competitor_ad_text
         }
+        translation_map = await _translate_pairs_async(
+            [
+                ("ad_copy", mock_response["ad_copy"]),
+                ("tagline", mock_response["generated_tagline"]),
+            ]
+        )
+        mock_response["ad_copy_mandarin"] = translation_map.get("ad_copy")
+        mock_response["tagline_mandarin"] = translation_map.get("tagline")
+        mock_response["translated_copy"] = translation_map.get("ad_copy")
         response_data = AdGenerationResponse(**mock_response)
         _log_mock(response_data)
         duration_ms = (time.time() - start_time) * 1000
-        print(f"DATADOG METRIC (MOCKED): ad_generation.status.approved, duration: {duration_ms:.2f}ms")
+        print(f"METRICS: ad_generation.status.approved, duration: {duration_ms:.2f}ms")
+        response_data.exec_duration_ms = (time.time() - start_time) * 1000  # type: ignore[attr-defined]
         return response_data
 
     # --- LIVE API CALL LOGIC (Disabled in Demo Mode) ---
@@ -350,11 +413,25 @@ def generate_ad(request: AdRequest):
         raise HTTPException(status_code=502, detail=f"Error communicating with OpenAI API: {e}")
 
     # The rest of the logic for confidence check, translation, etc. would go here...
-    final_ad_package = AdGenerationResponse(
-        status="approved", confidence_score=confidence_score, ad_copy=ad_copy,
-        generated_tagline=generated_tagline, translated_copy=f"(ES) {ad_copy}",
-        image_prompt=image_keywords, competitor_ad_text=request.competitor_ad_text
+    translation_map = await _translate_pairs_async(
+        [
+            ("ad_copy", ad_copy),
+            ("tagline", generated_tagline),
+        ]
     )
+
+    final_ad_package = AdGenerationResponse(
+        status="approved",
+        confidence_score=confidence_score,
+        ad_copy=ad_copy,
+        generated_tagline=generated_tagline,
+        ad_copy_mandarin=translation_map.get("ad_copy"),
+        tagline_mandarin=translation_map.get("tagline"),
+        translated_copy=translation_map.get("ad_copy"),
+        image_prompt=image_keywords,
+        competitor_ad_text=request.competitor_ad_text,
+    )
+    final_ad_package.exec_duration_ms = (time.time() - start_time) * 1000  # type: ignore[attr-defined]
     _log_mock(final_ad_package)
     return final_ad_package
 
@@ -528,12 +605,23 @@ Respond ONLY with a valid JSON object:
                 tagline_prompt=campaign_tagline,
             )
 
+            translations = await _translate_pairs_async(
+                [
+                    ("headline", campaign_data.get("headline")),
+                    ("body", campaign_data.get("body")),
+                    ("tagline", campaign_tagline),
+                ]
+            )
+
             # Create campaign object
             campaign = DemographicCampaign(
                 demographic_segment=demographic['segment'],
                 age_range=demographic['age_range'],
                 headline=campaign_data['headline'],
                 body=campaign_data['body'],
+                headline_mandarin=translations.get("headline"),
+                body_mandarin=translations.get("body"),
+                tagline_mandarin=translations.get("tagline"),
                 tagline=campaign_tagline,
                 image_url=image_url,
                 strategic_notes=campaign_data.get('strategic_notes', '')

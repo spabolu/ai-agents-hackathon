@@ -6,3 +6,4 @@ fastapi
 pydantic
 openai
 httpx
+clickhouse-connect

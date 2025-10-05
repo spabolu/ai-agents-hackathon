@@ -28,7 +28,7 @@ async def get_weather_context(city: str, country_code: Optional[str] = None) -> 
         Dictionary containing weather data and seasonal context
     """
     if not WEATHER_API_KEY:
-        print("WARNING: OPENWEATHER_API_KEY not found. Using mock weather data.")
+        # print("WARNING: OPENWEATHER_API_KEY not found. Using mock weather data.")
         return _get_mock_weather(city, country_code)
     
     location = f"{city},{country_code}" if country_code else city

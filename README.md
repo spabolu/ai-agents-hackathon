@@ -52,12 +52,20 @@ Create a `.env` file:
 TRUEFOUNDRY_API_KEY=your_truefoundry_key
 FREEPIK_API_KEY=your_freepik_key
 LINKUP_API_KEY=your_linkup_key
+DEEPL_API_KEY=your_deepl_key
 
 # Optional (uses mock data if not provided)
 OPENWEATHER_API_KEY=your_openweather_key
 
 # Optional
 DEMO_MODE=False
+# Optional storage
+CLICKHOUSE_HOST=your_clickhouse_host
+CLICKHOUSE_PORT=8443
+CLICKHOUSE_USER=your_user  # or set CLICKHOUSE_ID
+CLICKHOUSE_PASSWORD=your_password  # or set CLICKHOUSE_SECRET
+CLICKHOUSE_DATABASE=default
+CLICKHOUSE_TABLE=demo_ads
 ```
 
 ### 3. Start the Server
@@ -141,6 +149,8 @@ ai-agents-hackathon/
 ✅ Cultural context analysis  
 ✅ Multi-demographic campaigns  
 ✅ Autonomous strategic pivoting  
+✅ Mandarin ad translations powered by DeepL  
+✅ Prototype storage in ClickHouse for demo telemetry  
 
 ---
 

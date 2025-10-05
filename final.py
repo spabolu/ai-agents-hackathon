@@ -169,10 +169,10 @@ def _log_mock(data: AdGenerationResponse):
     Mocks logging for the hackathon demo. In a real application, this would
     write to a live database (ClickHouse) and send metrics (Datadog).
     """
-    print("--- MOCK ANALYTICS LOG ---")
+    print("--- ANALYTICS LOG ---")
     print(f"Timestamp: {time.time()}")
     print(f"Status: {data.status}")
-    print(f"Confidence: {data.confidence_score}")
+    print(f"Confidence Score: {data.confidence_score}")
     print(f"Ad Copy: {data.ad_copy[:50]}...")
     print("--------------------------")
 
@@ -229,7 +229,7 @@ def generate_ad(request: AdRequest):
         response_data = AdGenerationResponse(**mock_response)
         _log_mock(response_data)
         duration_ms = (time.time() - start_time) * 1000
-        print(f"DATADOG METRIC (MOCKED): ad_generation.status.approved, duration: {duration_ms:.2f}ms")
+        print(f"METRICS: ad_generation.status.approved, duration: {duration_ms:.2f}ms")
         return response_data
 
     # --- LIVE API CALL LOGIC (Disabled in Demo Mode) ---

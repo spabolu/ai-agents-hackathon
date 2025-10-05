@@ -56,6 +56,12 @@ async def test_campaign_generation(city: str, country_code: str) -> Dict[str, An
                 print(f"      Body: {campaign['body'][:100]}...")
                 if campaign.get('tagline'):
                     print(f"      Tagline: {campaign['tagline']}")
+                if campaign.get('headline_mandarin'):
+                    print(f"      Headline (ZH): {campaign['headline_mandarin']}")
+                if campaign.get('body_mandarin'):
+                    print(f"      Body (ZH): {campaign['body_mandarin'][:100]}...")
+                if campaign.get('tagline_mandarin'):
+                    print(f"      Tagline (ZH): {campaign['tagline_mandarin']}")
                 print(f"      Image: {campaign['image_url'][:60]}...")
                 print(f"      Notes: {campaign['strategic_notes'][:80]}...")
             
