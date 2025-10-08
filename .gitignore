@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+.env
+.env.hackathon
+.env.local
+.local_backup_sensitive_data/
+tmp/
+backups/
+generated_image.jpg
+
+.DS_Store
