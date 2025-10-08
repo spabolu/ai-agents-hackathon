@@ -12,7 +12,7 @@ class LinkupAPIError(RuntimeError):
 
 def linkup_search(
     *,
-    token: str = "047b66c3-0fc9-4277-8475-2bd48eb1397c",
+    token: str,
     q: str,
     depth: Literal["standard", "deep"] = "standard",
     output_type: Literal["sourcedAnswer", "searchResults", "structured"] = "sourcedAnswer",
@@ -34,7 +34,7 @@ def linkup_search(
     Parameters
     ----------
     token : str
-        Bearer token for Linkup (no "Bearer " prefix needed).
+        Bearer token for Linkup (no "Bearer " prefix needed). Must be provided by caller.
     q : str
         Natural-language question / query.
     depth : {"standard", "deep"}
@@ -73,7 +73,6 @@ def linkup_search(
     """
     url = f"{base_url.rstrip('/')}/v1/search"
 
-    # Build payload with only provided fields to keep the request minimal
     payload: Dict[str, Any] = {
         "q": q,
         "depth": depth,
@@ -90,11 +89,9 @@ def linkup_search(
     if include_domains is not None:
         payload["includeDomains"] = list(include_domains)
 
-    # Output-type specific flags
     if output_type == "sourcedAnswer" and include_inline_citations is not None:
         payload["includeInlineCitations"] = include_inline_citations
     if output_type == "structured":
-        # Ensure schema is serialized as a JSON string (API expects a string)
         if structured_output_schema is None:
             raise ValueError("structured_output_schema is required when output_type='structured'")
         if isinstance(structured_output_schema, dict):
@@ -104,7 +101,6 @@ def linkup_search(
         if include_sources is not None:
             payload["includeSources"] = include_sources
     else:
-        # If not structured, make sure we don't accidentally send a schema
         if structured_output_schema is not None:
             raise ValueError("structured_output_schema must be None unless output_type='structured'")
 
@@ -117,7 +113,6 @@ def linkup_search(
     resp = s.post(url, headers=headers, json=payload, timeout=timeout)
 
     if not resp.ok:
-        # Try to surface API error details
         try:
             detail = resp.json()
         except Exception:
@@ -129,7 +124,7 @@ def linkup_search(
 
 def linkup_fetch(
     *,
-    token: str = "047b66c3-0fc9-4277-8475-2bd48eb1397c",
+    token: str,
     url: str,
     include_raw_html: bool = False,
     render_js: bool = False,
@@ -144,7 +139,7 @@ def linkup_fetch(
     Parameters
     ----------
     token : str
-        Bearer token for Linkup (no "Bearer " prefix needed).
+        Bearer token for Linkup (no "Bearer " prefix needed). Must be provided by caller.
     url : str
         The webpage URL to fetch.
     include_raw_html : bool
@@ -202,45 +197,12 @@ def linkup_fetch(
 # (uncomment to try)
 # -------------------------
 # if __name__ == "__main__":
-#     TOKEN = "YOUR_LINKUP_API_KEY"
+#     TOKEN = os.environ["LINKUP_API_KEY"]
 #
-#     # 1) /search — sourced answer
 #     ans = linkup_search(
 #         token=TOKEN,
 #         q="What is Microsoft's 2024 revenue?",
 #         depth="standard",
 #         output_type="sourcedAnswer",
-#         include_images=False,
-#         from_date="2025-01-01",
-#         to_date="2025-01-01",
-#         include_domains=["microsoft.com", "agolution.com"],
-#         exclude_domains=["wikipedia.com"],
-#         include_inline_citations=False,
 #     )
 #     print(ans)
-#
-#     # 2) /fetch — get markdown of a page
-#     page = linkup_fetch(
-#         token=TOKEN,
-#         url="https://docs.linkup.so",
-#         include_raw_html=False,
-#         render_js=False,
-#         extract_images=False,
-#     )
-#     print(page)
-
-
-ans = linkup_search(
-        # token=TOKEN,
-        q="What is Microsoft's 2024 revenue?",
-        depth="standard",
-        output_type="sourcedAnswer",
-        include_images=False,
-        from_date="2024-01-01",
-        # to_date="2025-01-01",
-        include_domains=["microsoft.com", "agolution.com"],
-        exclude_domains=["wikipedia.com"],
-        include_inline_citations=False,
-    )
-
-print(json.dumps(ans, indent=2))

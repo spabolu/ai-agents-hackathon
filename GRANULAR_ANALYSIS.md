@@ -453,7 +453,7 @@ if response.status_code == 200:
 # Lines 13-127: Complete linkup_search function
 def linkup_search(
     *,
-    token: str = "047b66c3-0fc9-4277-8475-2bd48eb1397c",  # Hardcoded API key!
+    token: str = "[REDACTED_LINKUP_TOKEN]",  # Hardcoded API key!
     q: str,
     depth: Literal["standard", "deep"] = "standard",
     output_type: Literal["sourcedAnswer", "searchResults", "structured"] = "sourcedAnswer",
@@ -531,8 +531,8 @@ class ClickHouseClient:
 
 **Contents:**
 ```bash
-PERPLEXITY_API_KEY=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
-FREEPIK_API_KEY=FPSX808b186db128487c9fd6cc46590047d0
+PERPLEXITY_API_KEY=[REDACTED_PERPLEXITY_KEY]
+FREEPIK_API_KEY=[REDACTED_FREEPIK_KEY]
 
 # ClickHouse Configuration
 CLICKHOUSE_HOST=localhost
@@ -541,14 +541,14 @@ CLICKHOUSE_USER=default
 CLICKHOUSE_PASSWORD=
 CLICKHOUSE_DATABASE=ai_agent
 
-DATADOG_API_KEY=36c603fe3d7d28c5f91fbdd72c971dec  # ❌ NOT USED IN CODE
+DATADOG_API_KEY=[REDACTED_DATADOG_KEY]  # ❌ NOT USED IN CODE
 
-DEEPL_API_KEY=92ac4ed6-7f61-4351-b677-165db4fbda70:fx  # ❌ NOT USED IN CODE
-LINKUP_API_KEY=fcdbaec2-362f-4ed1-9704-1d5b12b7bd6d  # ❌ NOT USED (hardcoded in linkup.py)
+DEEPL_API_KEY=[REDACTED_DEEPL_KEY]  # ❌ NOT USED IN CODE
+LINKUP_API_KEY=[REDACTED_LINKUP_TOKEN]  # ❌ NOT USED (hardcoded in linkup.py)
 
-CLICKHOUSE_API_KEY=xyr3lOQCqosAmnHgOsQT4b1d2rA1JmEkcV7RlCvJLcZ7k1jrpdrvdoT7s9FIQu
-CLICKHOUSE_ID=xyr3lOQCqosAmnHgOsQT
-CLICKHOUSE_SECRET=4b1d2rA1JmEkcV7RlCvJLcZ7k1jrpdrvdoT7s9FIQu
+CLICKHOUSE_API_KEY=[REDACTED_CLICKHOUSE_SECRET]
+CLICKHOUSE_ID=[REDACTED_CLICKHOUSE_ID]
+CLICKHOUSE_SECRET=[REDACTED_CLICKHOUSE_SECRET]
 ```
 
 **Finding:** Datadog and DeepL API keys are present but unused in code
