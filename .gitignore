@@ -8,6 +8,5 @@ __pycache__/
 .local_backup_sensitive_data/
 tmp/
 backups/
-generated_image.jpg
 
 .DS_Store
